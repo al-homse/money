@@ -16,16 +16,27 @@ class _HomeScreenState extends State<HomeScreen> {
       FirebaseFirestore.instance.collection('expenses');
 
   DateTime _selectedDate = DateTime.now();
-  double _exchangeRate = 15000; // سعر الصرف الافتراضي (1 دولار = 15000 ل.س)
-  double _monthlyLimitSYP = 9000000; // السقف الشهري الافتراضي بالليرة السورية
+  double _exchangeRate = 15000; // سعر الصرف الافتراضي
+  double _monthlyLimitSYP = 9000000; // السقف الشهري الافتراضي
 
   Future<void> _addExpense(String name, double price, String category) async {
+    // ندمج التاريخ المحدد مع وقت اللحظة الحالية لضمان دقة الترتيب والتاريخ
+    final now = DateTime.now();
+    final fullDate = DateTime(
+      _selectedDate.year,
+      _selectedDate.month,
+      _selectedDate.day,
+      now.hour,
+      now.minute,
+      now.second,
+    );
+
     final newItem = ExpenseItem(
       id: '',
       name: name,
       price: price,
       category: category,
-      date: _selectedDate,
+      date: fullDate,
     );
     await _expensesRef.add(newItem.toMap());
   }
@@ -57,7 +68,7 @@ class _HomeScreenState extends State<HomeScreen> {
           children: [
             TextField(
               controller: rateController,
-              keyboardType: TextInputType.number,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
               decoration: const InputDecoration(
                 labelText: 'سعر صرف الدولار (ل.س)',
                 border: OutlineInputBorder(),
@@ -66,7 +77,7 @@ class _HomeScreenState extends State<HomeScreen> {
             const SizedBox(height: 12),
             TextField(
               controller: limitController,
-              keyboardType: TextInputType.number,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
               decoration: const InputDecoration(
                 labelText: 'السقف الشهري (ل.س)',
                 border: OutlineInputBorder(),
@@ -76,7 +87,11 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
+            onPressed: () {
+              rateController.dispose();
+              limitController.dispose();
+              Navigator.of(ctx).pop();
+            },
             child: const Text('إلغاء'),
           ),
           ElevatedButton(
@@ -87,6 +102,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 _monthlyLimitSYP =
                     double.tryParse(limitController.text) ?? _monthlyLimitSYP;
               });
+              rateController.dispose();
+              limitController.dispose();
               Navigator.of(ctx).pop();
             },
             child: const Text('حفظ'),
@@ -140,7 +157,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   item.date.day == _selectedDate.day;
             }).toList();
 
-            // مشتريات الشهر الحالي لحساب السقف الشهري
+            // مشتريات الشهر المحدد لحساب السقف الشهري
             final currentMonthExpenses = allExpenses.where((item) {
               return item.date.year == _selectedDate.year &&
                   item.date.month == _selectedDate.month;
