@@ -1,8 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:intl/intl.dart';
-import '../models/expense_item.dart';
-import 'widgets/add_expense_modal.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -12,349 +8,194 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final CollectionReference _expensesRef =
-      FirebaseFirestore.instance.collection('expenses');
+  // قائمة تجريبية للمعاملات/المصاريف
+  final List<Map<String, dynamic>> _transactions = [];
 
-  DateTime _selectedDate = DateTime.now();
-  double _exchangeRate = 15000; // سعر الصرف الافتراضي
-  double _monthlyLimitSYP = 9000000; // السقف الشهري الافتراضي
+  // متحكمات النصوص لإضافة مصروف جديد
+  final TextEditingController _titleController = TextEditingController();
+  final TextEditingController _amountController = TextEditingController();
 
-  Future<void> _addExpense(String name, double price, String category) async {
-    // ندمج التاريخ المحدد مع وقت اللحظة الحالية لضمان دقة الترتيب والتاريخ
-    final now = DateTime.now();
-    final fullDate = DateTime(
-      _selectedDate.year,
-      _selectedDate.month,
-      _selectedDate.day,
-      now.hour,
-      now.minute,
-      now.second,
-    );
+  void _addTransaction() {
+    final title = _titleController.text;
+    final amount = double.tryParse(_amountController.text) ?? 0.0;
 
-    final newItem = ExpenseItem(
-      id: '',
-      name: name,
-      price: price,
-      category: category,
-      date: fullDate,
-    );
-    await _expensesRef.add(newItem.toMap());
+    if (title.isEmpty || amount <= 0) {
+      return;
+    }
+
+    setState(() {
+      _transactions.add({
+        'id': DateTime.now().toString(),
+        'title': title,
+        'amount': amount,
+        'date': DateTime.now(),
+      });
+    });
+
+    _titleController.clear();
+    _amountController.clear();
+    Navigator.of(context).pop();
   }
 
-  Future<void> _deleteExpense(String id) async {
-    await _expensesRef.doc(id).delete();
-  }
-
-  void _openAddExpenseModal(BuildContext ctx) {
+  void _showAddTransactionDialog() {
     showModalBottomSheet(
-      context: ctx,
-      isScrollControlled: true,
-      builder: (_) => AddExpenseModal(onAddExpense: _addExpense),
-    );
-  }
-
-  void _showSettingsDialog() {
-    final rateController =
-        TextEditingController(text: _exchangeRate.toStringAsFixed(0));
-    final limitController =
-        TextEditingController(text: _monthlyLimitSYP.toStringAsFixed(0));
-
-    showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('إعدادات العملة والسقف'),
-        content: Column(
+      isScrollControlled: true,
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(
+          top: 16,
+          left: 16,
+          right: 16,
+          bottom: MediaQuery.of(ctx).viewInsets.bottom + 16,
+        ),
+        child: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
+            const Text(
+              'إضافة مصروف جديد',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 12),
             TextField(
-              controller: rateController,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              controller: _titleController,
               decoration: const InputDecoration(
-                labelText: 'سعر صرف الدولار (ل.س)',
+                labelText: 'العنوان / الوصف',
                 border: OutlineInputBorder(),
               ),
             ),
             const SizedBox(height: 12),
             TextField(
-              controller: limitController,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              controller: _amountController,
+              keyboardType: TextInputType.number,
               decoration: const InputDecoration(
-                labelText: 'السقف الشهري (ل.س)',
+                labelText: 'المبلغ',
                 border: OutlineInputBorder(),
               ),
             ),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: _addTransaction,
+              child: const Text('حفظ المصروف'),
+            ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.of(ctx).pop();
-            },
-            child: const Text('إلغاء'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              setState(() {
-                _exchangeRate =
-                    double.tryParse(rateController.text) ?? _exchangeRate;
-                _monthlyLimitSYP =
-                    double.tryParse(limitController.text) ?? _monthlyLimitSYP;
-              });
-              Navigator.of(ctx).pop();
-            },
-            child: const Text('حفظ'),
-          ),
-        ],
       ),
     );
   }
 
   @override
+  void dispose() {
+    _titleController.dispose();
+    _amountController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final isToday = _selectedDate.year == DateTime.now().year &&
-        _selectedDate.month == DateTime.now().month &&
-        _selectedDate.day == DateTime.now().day;
+    // حساب إجمالي المصاريف
+    final totalExpenses = _transactions.fold<double>(
+      0.0,
+      (sum, item) => sum + (item['amount'] as double),
+    );
 
     return Directionality(
-      textDirection: TextDirection.rtl,
+      textDirection: TextDirection.rtl, // الاتجاه الصحيح للغة العربية
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('سجل المشتريات'),
+          title: const Text('إدارة المصاريف'),
           centerTitle: true,
-          backgroundColor: Colors.teal,
-          foregroundColor: Colors.white,
           actions: [
             IconButton(
-              icon: const Icon(Icons.settings),
-              onPressed: _showSettingsDialog,
-              tooltip: 'إعدادات الصرف والسقف',
+              icon: const Icon(Icons.add),
+              onPressed: _showAddTransactionDialog,
             ),
           ],
         ),
-        body: StreamBuilder<QuerySnapshot>(
-          stream: _expensesRef.orderBy('date', descending: true).snapshots(),
-          builder: (context, snapshot) {
-            if (snapshot.hasError) {
-              return const Center(child: Text('حدث خطأ في جلب البيانات'));
-            }
-
-            if (snapshot.connectionState == ConnectionState.waiting) {
-              return const Center(child: CircularProgressIndicator());
-            }
-
-            final docs = snapshot.data?.docs ?? [];
-            final allExpenses =
-                docs.map((doc) => ExpenseItem.fromFirestore(doc)).toList();
-
-            // مشتريات اليوم المحدد
-            final selectedDayExpenses = allExpenses.where((item) {
-              return item.date.year == _selectedDate.year &&
-                  item.date.month == _selectedDate.month &&
-                  item.date.day == _selectedDate.day;
-            }).toList();
-
-            // مشتريات الشهر المحدد لحساب السقف الشهري
-            final currentMonthExpenses = allExpenses.where((item) {
-              return item.date.year == _selectedDate.year &&
-                  item.date.month == _selectedDate.month;
-            }).toList();
-
-            final selectedDayTotalUSD = selectedDayExpenses.fold(
-                0.0, (sum, item) => sum + item.price);
-            final selectedDayTotalSYP = selectedDayTotalUSD * _exchangeRate;
-
-            final monthlyTotalUSD = currentMonthExpenses.fold(
-                0.0, (sum, item) => sum + item.price);
-            final monthlyTotalSYP = monthlyTotalUSD * _exchangeRate;
-
-            // نسبة الاستهلاك من السقف الشهري
-            final progress = (_monthlyLimitSYP > 0)
-                ? (monthlyTotalSYP / _monthlyLimitSYP).clamp(0.0, 1.0)
-                : 0.0;
-
-            Color progressColor = Colors.green;
-            if (progress > 0.85) {
-              progressColor = Colors.red;
-            } else if (progress > 0.65) {
-              progressColor = Colors.orange;
-            }
-
-            return Column(
-              children: [
-                // شريط تحديد التاريخ
-                Container(
-                  color: Colors.teal.shade100,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(
-                        children: [
-                          const Icon(Icons.calendar_today, color: Colors.teal),
-                          const SizedBox(width: 8),
-                          Text(
-                            isToday
-                                ? 'اليوم (${DateFormat('yyyy-MM-dd').format(_selectedDate)})'
-                                : DateFormat('yyyy-MM-dd').format(_selectedDate),
-                            style: const TextStyle(
-                                fontWeight: FontWeight.bold, fontSize: 16),
-                          ),
-                        ],
+        body: Column(
+          children: [
+            // كارد ملخص الحساب
+            Card(
+              margin: const EdgeInsets.all(16),
+              elevation: 4,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'إجمالي المصاريف:',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                    ),
+                    Text(
+                      '${totalExpenses.toStringAsFixed(2)} ل.س',
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.redAccent,
                       ),
-                      ElevatedButton.icon(
-                        style: ElevatedButton.styleFrom(
-                            backgroundColor: Colors.teal,
-                            foregroundColor: Colors.white),
-                        onPressed: () async {
-                          final picked = await showDatePicker(
-                            context: context,
-                            initialDate: _selectedDate,
-                            firstDate: DateTime(2024),
-                            lastDate: DateTime(2030),
-                          );
-                          if (picked != null) {
-                            setState(() => _selectedDate = picked);
-                          }
-                        },
-                        icon: const Icon(Icons.edit_calendar, size: 18),
-                        label: const Text('تغيير اليوم'),
-                      )
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-
-                // بطاقة الإجمالي والميزانية
-                Container(
-                  width: double.infinity,
-                  margin: const EdgeInsets.all(16),
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.teal.shade50,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Colors.teal.shade200),
-                  ),
-                  child: Column(
-                    children: [
-                      Text(
-                        'إجمالي المشتريات لـ ${DateFormat('yyyy/MM/dd').format(_selectedDate)}',
-                        style: const TextStyle(fontSize: 15, color: Colors.teal),
+              ),
+            ),
+            // قائمة المصاريف
+            Expanded(
+              child: _transactions.isEmpty
+                  ? const Center(
+                      child: Text(
+                        'لا توجد مصاريف مسجلة حتى الآن.',
+                        style: TextStyle(color: Colors.grey, fontSize: 16),
                       ),
-                      const SizedBox(height: 6),
-                      Text(
-                        '${selectedDayTotalUSD.toStringAsFixed(2)} \$  |  ${NumberFormat('#,###').format(selectedDayTotalSYP)} ل.س',
-                        style: const TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                          color: Colors.teal,
-                        ),
-                      ),
-                      const Divider(height: 24),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text('استهلاك السقف الشهري:',
-                              style: TextStyle(fontSize: 13)),
-                          Text(
-                            '${NumberFormat('#,###').format(monthlyTotalSYP)} / ${NumberFormat('#,###').format(_monthlyLimitSYP)} ل.س',
-                            style: TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.bold,
-                                color: progressColor),
+                    )
+                  : ListView.builder(
+                      itemCount: _transactions.length,
+                      itemBuilder: (ctx, index) {
+                        final tx = _transactions[index];
+                        return Card(
+                          margin: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 6,
                           ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: LinearProgressIndicator(
-                          value: progress,
-                          minHeight: 10,
-                          backgroundColor: Colors.grey.shade300,
-                          valueColor:
-                              AlwaysStoppedAnimation<Color>(progressColor),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-
-                // القائمة
-                Expanded(
-                  child: selectedDayExpenses.isEmpty
-                      ? const Center(
-                          child: Text(
-                            'لا توجد مشتريات مسجلة في هذا التاريخ.',
-                            style: TextStyle(color: Colors.grey),
-                          ),
-                        )
-                      : ListView.builder(
-                          itemCount: selectedDayExpenses.length,
-                          itemBuilder: (ctx, index) {
-                            final item = selectedDayExpenses[index];
-                            final itemSYP = item.price * _exchangeRate;
-                            return Card(
-                              margin: const EdgeInsets.symmetric(
-                                  horizontal: 16, vertical: 4),
-                              child: ListTile(
-                                leading: CircleAvatar(
-                                  backgroundColor: Colors.teal.shade100,
-                                  child: const Icon(Icons.shopping_bag,
-                                      color: Colors.teal),
-                                ),
-                                title: Text(item.name,
-                                    style: const TextStyle(
-                                        fontWeight: FontWeight.bold)),
-                                subtitle: Text(item.category),
-                                trailing: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Column(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.end,
-                                      children: [
-                                        Text(
-                                          '${item.price.toStringAsFixed(2)} \$',
-                                          style: const TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 15,
-                                            color: Colors.teal,
-                                          ),
-                                        ),
-                                        Text(
-                                          '${NumberFormat('#,###').format(itemSYP)} ل.س',
-                                          style: const TextStyle(
-                                            fontSize: 12,
-                                            color: Colors.grey,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(width: 8),
-                                    IconButton(
-                                      icon: const Icon(Icons.delete,
-                                          color: Colors.redAccent),
-                                      onPressed: () => _deleteExpense(item.id),
-                                    ),
-                                  ],
+                          child: ListTile(
+                            leading: CircleAvatar(
+                              radius: 25,
+                              child: Padding(
+                                padding: const EdgeInsets.all(6),
+                                child: FittedBox(
+                                  child: Text('${tx['amount']}'),
                                 ),
                               ),
-                            );
-                          },
-                        ),
-                ),
-              ],
-            );
-          },
+                            ),
+                            title: Text(
+                              tx['title'],
+                              style: const TextStyle(fontWeight: FontWeight.bold),
+                            ),
+                            subtitle: Text(
+                              '${(tx['date'] as DateTime).day}/${(tx['date'] as DateTime).month}/${(tx['date'] as DateTime).year}',
+                            ),
+                            trailing: IconButton(
+                              icon: const Icon(Icons.delete, color: Colors.red),
+                              onPressed: () {
+                                setState(() {
+                                  _transactions.removeAt(index);
+                                });
+                              },
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+            ),
+          ],
         ),
-        floatingActionButton: FloatingActionButton.extended(
-          onPressed: () => _openAddExpenseModal(context),
-          backgroundColor: Colors.teal,
-          foregroundColor: Colors.white,
-          icon: const Icon(Icons.add),
-          label: const Text('إضافة غرض'),
+        floatingActionButton: FloatingActionButton(
+          onPressed: _showAddTransactionDialog,
+          child: const Icon(Icons.add),
         ),
       ),
     );
