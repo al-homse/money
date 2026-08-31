@@ -3,7 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 class ExpenseItem {
   final String id;
   final String name;
-  final double price;
+  final double price; // السعر بالدولار
   final String category;
   final DateTime date;
 
@@ -15,7 +15,6 @@ class ExpenseItem {
     required this.date,
   });
 
-  // تحويل البيانات إلى Map للحفظ في Firestore
   Map<String, dynamic> toMap() {
     return {
       'name': name,
@@ -25,7 +24,6 @@ class ExpenseItem {
     };
   }
 
-  // إنشاء العنصر من البيانات القادمة من Firestore
   factory ExpenseItem.fromFirestore(DocumentSnapshot doc) {
     final data = doc.data() as Map<String, dynamic>;
     return ExpenseItem(
