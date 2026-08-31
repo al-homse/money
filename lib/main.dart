@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'views/home_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // تهيئة Firebase في التطبيق
+  // 1. تهيئة Firebase في التطبيق
   await Firebase.initializeApp(
     options: const FirebaseOptions(
       apiKey: "AIzaSyCeTkG9y_J4f_eAw9f-s2mtfCWYbIAPK2w",
@@ -15,6 +16,11 @@ void main() async {
       messagingSenderId: "609160171719",
       appId: "1:609160171719:web:d0c37479729a30190a6ee2",
     ),
+  );
+
+  // 2. إعدادات Firestore للويب للعمل بدون انقطاع
+  FirebaseFirestore.instance.settings = const Settings(
+    persistenceEnabled: true,
   );
 
   runApp(const ExpenseTrackerApp());
