@@ -88,8 +88,6 @@ class _HomeScreenState extends State<HomeScreen> {
         actions: [
           TextButton(
             onPressed: () {
-              rateController.dispose();
-              limitController.dispose();
               Navigator.of(ctx).pop();
             },
             child: const Text('إلغاء'),
@@ -102,8 +100,6 @@ class _HomeScreenState extends State<HomeScreen> {
                 _monthlyLimitSYP =
                     double.tryParse(limitController.text) ?? _monthlyLimitSYP;
               });
-              rateController.dispose();
-              limitController.dispose();
               Navigator.of(ctx).pop();
             },
             child: const Text('حفظ'),
