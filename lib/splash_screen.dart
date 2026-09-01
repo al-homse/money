@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'main.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -32,18 +31,10 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
 
     _controller.forward();
 
-    // الانتقال السلس إلى AuthWrapper لفحص تسجيل الدخول بعد 1.8 ثانية
+    // الانتقال عبر المسار المباشر لتفادي الشاشة السوداء في الأندرويد
     Future.delayed(const Duration(milliseconds: 1800), () {
       if (mounted) {
-        Navigator.of(context).pushReplacement(
-          PageRouteBuilder(
-            transitionDuration: const Duration(milliseconds: 600),
-            pageBuilder: (_, __, ___) => const AuthWrapper(),
-            transitionsBuilder: (_, animation, __, child) {
-              return FadeTransition(opacity: animation, child: child);
-            },
-          ),
-        );
+        Navigator.of(context).pushReplacementNamed('/auth');
       }
     });
   }
@@ -100,7 +91,7 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
               ),
             ),
           ),
-          
+
           // العلامة المائية ثابتة ومضيئة في أسفل اليسار
           const Positioned(
             left: 16,
