@@ -24,17 +24,31 @@ class _HomeScreenState extends State<HomeScreen> {
   final TextEditingController _budgetController = TextEditingController();
   final TextEditingController _exchangeController = TextEditingController();
 
-  // إضافة مصروف جديد إلى Firebase
-  Future<void> _addTransaction() async {
+  // إضافة مصروف جديد إلى Firebase مع حساب التصريف التلقائي
+  Future<void> _addTransaction(double exchangeRate) async {
     final title = _titleController.text.trim();
     final amount = double.tryParse(_amountController.text) ?? 0.0;
 
     if (title.isEmpty || amount <= 0) return;
 
+    double amountInSYP = 0.0;
+    double amountInUSD = 0.0;
+
+    // إجراء التصريف التلقائي بناءً على العملة المختارة وسعر الصرف الحالي
+    if (_selectedCurrency == 'SYP') {
+      amountInSYP = amount;
+      amountInUSD = exchangeRate > 0 ? (amount / exchangeRate) : 0.0;
+    } else {
+      amountInUSD = amount;
+      amountInSYP = amount * exchangeRate;
+    }
+
     await _expensesCollection.add({
       'title': title,
-      'amount': amount,
+      'originalAmount': amount,
       'currency': _selectedCurrency,
+      'amountInSYP': amountInSYP,
+      'amountInUSD': amountInUSD,
       'timestamp': FieldValue.serverTimestamp(),
     });
 
@@ -48,7 +62,7 @@ class _HomeScreenState extends State<HomeScreen> {
     await _expensesCollection.doc(id).delete();
   }
 
-  // حفظ سعر الصرف والميزانية في Firebase لضمان عدم الضياع
+  // حفظ سعر الصرف والميزانية في Firebase
   Future<void> _saveSettingsToFirebase(double budget, double rate) async {
     await _settingsDoc.set({
       'budgetLimitSYP': budget,
@@ -57,7 +71,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   // حوار إضافة مصروف
-  void _showAddTransactionDialog() {
+  void _showAddTransactionDialog(double exchangeRate) {
     showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -116,8 +130,8 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(height: 16),
               ElevatedButton(
-                onPressed: _addTransaction,
-                child: const Text('حفظ المصروف'),
+                onPressed: () => _addTransaction(exchangeRate),
+                child: const Text('حفظ المصروف وتصريفه'),
               ),
             ],
           ),
@@ -169,7 +183,7 @@ class _HomeScreenState extends State<HomeScreen> {
               await _saveSettingsToFirebase(newBudget, newRate);
               if (mounted) Navigator.of(ctx).pop();
             },
-            child: const Text('حفظ في السحابة'),
+            child: const Text('حفظ التعديلات'),
           ),
         ],
       ),
@@ -193,6 +207,10 @@ class _HomeScreenState extends State<HomeScreen> {
                     itemBuilder: (context, index) {
                       final tx = docs[index].data() as Map<String, dynamic>;
                       final isSyp = tx['currency'] == 'SYP';
+                      final double origAmount = (tx['originalAmount'] ?? tx['amount'] ?? 0.0).toDouble();
+                      final double sypValue = (tx['amountInSYP'] ?? (isSyp ? origAmount : 0.0)).toDouble();
+                      final double usdValue = (tx['amountInUSD'] ?? (!isSyp ? origAmount : 0.0)).toDouble();
+
                       final Timestamp? timestamp = tx['timestamp'] as Timestamp?;
                       final String dateStr = timestamp != null
                           ? "${timestamp.toDate().day}/${timestamp.toDate().month}/${timestamp.toDate().year} - ${timestamp.toDate().hour}:${timestamp.toDate().minute}"
@@ -207,9 +225,9 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                         ),
                         title: Text(tx['title'] ?? ''),
-                        subtitle: Text(dateStr, style: const TextStyle(fontSize: 12)),
+                        subtitle: Text('$dateStr\nمعادل: ${isSyp ? "\$${usdValue.toStringAsFixed(2)}" : "${sypValue.toStringAsFixed(0)} ل.س"}', style: const TextStyle(fontSize: 12)),
                         trailing: Text(
-                          '${tx['amount']} ${tx['currency']}',
+                          '$origAmount ${tx['currency']}',
                           style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
                         ),
                       );
@@ -235,7 +253,6 @@ class _HomeScreenState extends State<HomeScreen> {
     return Directionality(
       textDirection: TextDirection.rtl,
       child: StreamBuilder<DocumentSnapshot>(
-        // البث المباشر للإعدادات (الميزانية وسعر الصرف)
         stream: _settingsDoc.snapshots(),
         builder: (context, settingsSnapshot) {
           double budgetLimitSYP = 1000000.0;
@@ -252,7 +269,6 @@ class _HomeScreenState extends State<HomeScreen> {
               title: const Text('إدارة المصاريف اليومية'),
               centerTitle: true,
               actions: [
-                // زر السجل
                 IconButton(
                   icon: const Icon(Icons.history),
                   tooltip: 'سجل المصاريف',
@@ -261,7 +277,6 @@ class _HomeScreenState extends State<HomeScreen> {
                     if (context.mounted) _openHistoryScreen(snapshot.docs);
                   },
                 ),
-                // زر الإعدادات
                 IconButton(
                   icon: const Icon(Icons.settings),
                   tooltip: 'تعديل سعر الصرف والميزانية',
@@ -270,7 +285,6 @@ class _HomeScreenState extends State<HomeScreen> {
               ],
             ),
             body: StreamBuilder<QuerySnapshot>(
-              // البث المباشر للمصاريف
               stream: _expensesCollection.orderBy('timestamp', descending: true).snapshots(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
@@ -278,21 +292,23 @@ class _HomeScreenState extends State<HomeScreen> {
                 }
 
                 final docs = snapshot.data?.docs ?? [];
-                double totalSYP = 0.0;
-                double totalUSD = 0.0;
+                double totalSYPCombined = 0.0;
+                double totalUSDCombined = 0.0;
 
                 for (var doc in docs) {
                   final data = doc.data() as Map<String, dynamic>;
-                  final amount = (data['amount'] as num).toDouble();
-                  if (data['currency'] == 'SYP') {
-                    totalSYP += amount;
-                  } else if (data['currency'] == 'USD') {
-                    totalUSD += amount;
-                  }
+                  final isSyp = data['currency'] == 'SYP';
+                  final origAmount = (data['originalAmount'] ?? data['amount'] ?? 0.0).toDouble();
+
+                  // حساب القيم المعروضة والتصريف التلقائي
+                  final sypValue = (data['amountInSYP'] ?? (isSyp ? origAmount : origAmount * exchangeRate)).toDouble();
+                  final usdValue = (data['amountInUSD'] ?? (!isSyp ? origAmount : (exchangeRate > 0 ? origAmount / exchangeRate : 0.0))).toDouble();
+
+                  totalSYPCombined += sypValue;
+                  totalUSDCombined += usdValue;
                 }
 
-                double totalInSYP = totalSYP + (totalUSD * exchangeRate);
-                double progressRatio = budgetLimitSYP > 0 ? (totalInSYP / budgetLimitSYP) : 0.0;
+                double progressRatio = budgetLimitSYP > 0 ? (totalSYPCombined / budgetLimitSYP) : 0.0;
                 if (progressRatio > 1.0) progressRatio = 1.0;
 
                 return Column(
@@ -308,16 +324,16 @@ class _HomeScreenState extends State<HomeScreen> {
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                const Text('إجمالي (ل.س):', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
-                                Text('${totalSYP.toStringAsFixed(0)} ل.س', style: const TextStyle(fontSize: 16, color: Colors.redAccent, fontWeight: FontWeight.bold)),
+                                const Text('إجمالي المصاريف (ل.س):', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                                Text('${totalSYPCombined.toStringAsFixed(0)} ل.س', style: const TextStyle(fontSize: 16, color: Colors.redAccent, fontWeight: FontWeight.bold)),
                               ],
                             ),
                             const SizedBox(height: 6),
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                const Text('إجمالي (USD):', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
-                                Text('\$${totalUSD.toStringAsFixed(2)}', style: const TextStyle(fontSize: 16, color: Colors.green, fontWeight: FontWeight.bold)),
+                                const Text('المعادل الشامل (USD):', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                                Text('\$${totalUSDCombined.toStringAsFixed(2)}', style: const TextStyle(fontSize: 16, color: Colors.green, fontWeight: FontWeight.bold)),
                               ],
                             ),
                             const Divider(height: 20),
@@ -357,6 +373,10 @@ class _HomeScreenState extends State<HomeScreen> {
                                 final doc = docs[index];
                                 final tx = doc.data() as Map<String, dynamic>;
                                 final isSyp = tx['currency'] == 'SYP';
+                                final origAmount = (tx['originalAmount'] ?? tx['amount'] ?? 0.0).toDouble();
+
+                                final sypValue = (tx['amountInSYP'] ?? (isSyp ? origAmount : origAmount * exchangeRate)).toDouble();
+                                final usdValue = (tx['amountInUSD'] ?? (!isSyp ? origAmount : (exchangeRate > 0 ? origAmount / exchangeRate : 0.0))).toDouble();
 
                                 return Card(
                                   margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -369,11 +389,17 @@ class _HomeScreenState extends State<HomeScreen> {
                                       ),
                                     ),
                                     title: Text(tx['title'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold)),
+                                    subtitle: Text(
+                                      isSyp
+                                          ? 'المعادل: \$${usdValue.toStringAsFixed(2)}'
+                                          : 'المعادل: ${sypValue.toStringAsFixed(0)} ل.س',
+                                      style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+                                    ),
                                     trailing: Row(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
                                         Text(
-                                          '${tx['amount']} ${tx['currency']}',
+                                          '$origAmount ${tx['currency']}',
                                           style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                                         ),
                                         IconButton(
@@ -392,7 +418,7 @@ class _HomeScreenState extends State<HomeScreen> {
               },
             ),
             floatingActionButton: FloatingActionButton(
-              onPressed: _showAddTransactionDialog,
+              onPressed: () => _showAddTransactionDialog(exchangeRate),
               child: const Icon(Icons.add),
             ),
           );
