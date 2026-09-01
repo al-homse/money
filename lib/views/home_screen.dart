@@ -9,22 +9,31 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  // المراجع في Firebase
   final CollectionReference _expensesCollection =
       FirebaseFirestore.instance.collection('expenses');
   final DocumentReference _settingsDoc =
       FirebaseFirestore.instance.collection('app_settings').doc('config');
 
-  // متحكمات النصوص لنموذج إضافة مصروف
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _amountController = TextEditingController();
   String _selectedCurrency = 'SYP';
 
-  // متحكمات الإعدادات
   final TextEditingController _budgetController = TextEditingController();
   final TextEditingController _exchangeController = TextEditingController();
 
-  // إضافة مصروف جديد إلى Firebase مع حساب التصريف التلقائي
+  // تحديد لون شريط التقدم بناءً على نسبة الاستهلاك
+  Color _getProgressBarColor(double ratio) {
+    if (ratio < 0.25) {
+      return Colors.green;
+    } else if (ratio < 0.50) {
+      return Colors.blue;
+    } else if (ratio < 0.75) {
+      return Colors.orange;
+    } else {
+      return Colors.red;
+    }
+  }
+
   Future<void> _addTransaction(double exchangeRate) async {
     final title = _titleController.text.trim();
     final amount = double.tryParse(_amountController.text) ?? 0.0;
@@ -34,7 +43,6 @@ class _HomeScreenState extends State<HomeScreen> {
     double amountInSYP = 0.0;
     double amountInUSD = 0.0;
 
-    // إجراء التصريف التلقائي بناءً على العملة المختارة وسعر الصرف الحالي
     if (_selectedCurrency == 'SYP') {
       amountInSYP = amount;
       amountInUSD = exchangeRate > 0 ? (amount / exchangeRate) : 0.0;
@@ -57,12 +65,10 @@ class _HomeScreenState extends State<HomeScreen> {
     if (mounted) Navigator.of(context).pop();
   }
 
-  // حذف مصروف
   Future<void> _deleteTransaction(String id) async {
     await _expensesCollection.doc(id).delete();
   }
 
-  // حفظ سعر الصرف والميزانية في Firebase
   Future<void> _saveSettingsToFirebase(double budget, double rate) async {
     await _settingsDoc.set({
       'budgetLimitSYP': budget,
@@ -70,7 +76,6 @@ class _HomeScreenState extends State<HomeScreen> {
     }, SetOptions(merge: true));
   }
 
-  // حوار إضافة مصروف
   void _showAddTransactionDialog(double exchangeRate) {
     showModalBottomSheet(
       context: context,
@@ -140,7 +145,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // حوار تعديل سعر الصرف وحد الميزانية
   void _showSettingsDialog(double currentBudget, double currentRate) {
     _budgetController.text = currentBudget.toStringAsFixed(0);
     _exchangeController.text = currentRate.toStringAsFixed(0);
@@ -190,51 +194,11 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // شاشة السجل التاريخي للمصاريف
+  // شاشة السجل الاحترافية بالتاريخ وتصفية القائمة
   void _openHistoryScreen(List<QueryDocumentSnapshot> docs) {
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (ctx) => Directionality(
-          textDirection: TextDirection.rtl,
-          child: Scaffold(
-            appBar: AppBar(
-              title: const Text('سجل المصاريف الكامل'),
-            ),
-            body: docs.isEmpty
-                ? const Center(child: Text('لا يوجد سجل مصاريف بعد.'))
-                : ListView.builder(
-                    itemCount: docs.length,
-                    itemBuilder: (context, index) {
-                      final tx = docs[index].data() as Map<String, dynamic>;
-                      final isSyp = tx['currency'] == 'SYP';
-                      final double origAmount = (tx['originalAmount'] ?? tx['amount'] ?? 0.0).toDouble();
-                      final double sypValue = (tx['amountInSYP'] ?? (isSyp ? origAmount : 0.0)).toDouble();
-                      final double usdValue = (tx['amountInUSD'] ?? (!isSyp ? origAmount : 0.0)).toDouble();
-
-                      final Timestamp? timestamp = tx['timestamp'] as Timestamp?;
-                      final String dateStr = timestamp != null
-                          ? "${timestamp.toDate().day}/${timestamp.toDate().month}/${timestamp.toDate().year} - ${timestamp.toDate().hour}:${timestamp.toDate().minute}"
-                          : "الآن";
-
-                      return ListTile(
-                        leading: CircleAvatar(
-                          backgroundColor: isSyp ? Colors.blue[100] : Colors.green[100],
-                          child: Text(
-                            isSyp ? 'ل.س' : '\$',
-                            style: TextStyle(color: isSyp ? Colors.blue[900] : Colors.green[900], fontWeight: FontWeight.bold),
-                          ),
-                        ),
-                        title: Text(tx['title'] ?? ''),
-                        subtitle: Text('$dateStr\nمعادل: ${isSyp ? "\$${usdValue.toStringAsFixed(2)}" : "${sypValue.toStringAsFixed(0)} ل.س"}', style: const TextStyle(fontSize: 12)),
-                        trailing: Text(
-                          '$origAmount ${tx['currency']}',
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-                        ),
-                      );
-                    },
-                  ),
-          ),
-        ),
+        builder: (ctx) => HistoryScreen(docs: docs),
       ),
     );
   }
@@ -300,7 +264,6 @@ class _HomeScreenState extends State<HomeScreen> {
                   final isSyp = data['currency'] == 'SYP';
                   final origAmount = (data['originalAmount'] ?? data['amount'] ?? 0.0).toDouble();
 
-                  // حساب القيم المعروضة والتصريف التلقائي
                   final sypValue = (data['amountInSYP'] ?? (isSyp ? origAmount : origAmount * exchangeRate)).toDouble();
                   final usdValue = (data['amountInUSD'] ?? (!isSyp ? origAmount : (exchangeRate > 0 ? origAmount / exchangeRate : 0.0))).toDouble();
 
@@ -309,7 +272,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 }
 
                 double progressRatio = budgetLimitSYP > 0 ? (totalSYPCombined / budgetLimitSYP) : 0.0;
-                if (progressRatio > 1.0) progressRatio = 1.0;
+                double overBudgetAmount = totalSYPCombined - budgetLimitSYP;
+                double overBudgetRatio = budgetLimitSYP > 0 ? (overBudgetAmount / budgetLimitSYP) : 0.0;
 
                 return Column(
                   children: [
@@ -354,12 +318,38 @@ class _HomeScreenState extends State<HomeScreen> {
                             ),
                             const SizedBox(height: 6),
                             LinearProgressIndicator(
-                              value: progressRatio,
+                              value: progressRatio > 1.0 ? 1.0 : progressRatio,
                               backgroundColor: Colors.grey[200],
-                              color: progressRatio > 0.85 ? Colors.red : Colors.blue,
+                              color: _getProgressBarColor(progressRatio),
                               minHeight: 10,
                               borderRadius: BorderRadius.circular(5),
                             ),
+                            
+                            // شريط التجاوز في حال تخطي الميزانية
+                            if (overBudgetAmount > 0) ...[
+                              const SizedBox(height: 14),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    'تجاوز الميزانية (+${overBudgetAmount.toStringAsFixed(0)} ل.س):',
+                                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.red),
+                                  ),
+                                  Text(
+                                    '+${(overBudgetRatio * 100).toStringAsFixed(1)}%',
+                                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.red),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 4),
+                              LinearProgressIndicator(
+                                value: overBudgetRatio > 1.0 ? 1.0 : overBudgetRatio,
+                                backgroundColor: Colors.red[50],
+                                color: Colors.red[900],
+                                minHeight: 8,
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                            ],
                           ],
                         ),
                       ),
@@ -423,6 +413,115 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+// الويجيت المخصصة لشاشة السجل مع قائمة الفلترة بالتاريخ
+class HistoryScreen extends StatefulWidget {
+  final List<QueryDocumentSnapshot> docs;
+  const HistoryScreen({super.key, required this.docs});
+
+  @override
+  State<HistoryScreen> createState() => _HistoryScreenState();
+}
+
+class _HistoryScreenState extends State<HistoryScreen> {
+  String _selectedFilter = 'الكل';
+
+  @override
+  Widget build(BuildContext context) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final yesterday = today.subtract(const Duration(days: 1));
+
+    final filteredDocs = widget.docs.where((doc) {
+      final tx = doc.data() as Map<String, dynamic>;
+      final Timestamp? timestamp = tx['timestamp'] as Timestamp?;
+      if (timestamp == null) return _selectedFilter == 'الكل';
+
+      final date = timestamp.toDate();
+      final txDate = DateTime(date.year, date.month, date.day);
+
+      if (_selectedFilter == 'اليوم') {
+        return txDate.isAtSameMomentAs(today);
+      } else if (_selectedFilter == 'الأمس') {
+        return txDate.isAtSameMomentAs(yesterday);
+      } else if (_selectedFilter == 'أقدم من الأمس') {
+        return txDate.isBefore(yesterday);
+      }
+      return true;
+    }).toList();
+
+    return Directionality(
+      textDirection: TextDirection.rtl,
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('سجل المصاريف الكامل'),
+          bottom: PreferredSize(
+            preferredSize: const Size.fromHeight(50),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              color: Colors.white,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('تصفية حسب التاريخ:', style: TextStyle(fontWeight: FontWeight.bold)),
+                  DropdownButton<String>(
+                    value: _selectedFilter,
+                    items: const [
+                      DropdownMenuItem(value: 'الكل', child: Text('جميع المصاريف')),
+                      DropdownMenuItem(value: 'اليوم', child: Text('مصاريف اليوم')),
+                      DropdownMenuItem(value: 'الأمس', child: Text('مصاريف الأمس')),
+                      DropdownMenuItem(value: 'أقدم من الأمس', child: Text('أيام سابقة')),
+                    ],
+                    onChanged: (val) {
+                      if (val != null) {
+                        setState(() {
+                          _selectedFilter = val;
+                        });
+                      }
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        body: filteredDocs.isEmpty
+            ? const Center(child: Text('لا توجد مصاريف لهذه الفترة.'))
+            : ListView.builder(
+                itemCount: filteredDocs.length,
+                itemBuilder: (context, index) {
+                  final tx = filteredDocs[index].data() as Map<String, dynamic>;
+                  final isSyp = tx['currency'] == 'SYP';
+                  final double origAmount = (tx['originalAmount'] ?? tx['amount'] ?? 0.0).toDouble();
+                  final double sypValue = (tx['amountInSYP'] ?? (isSyp ? origAmount : 0.0)).toDouble();
+                  final double usdValue = (tx['amountInUSD'] ?? (!isSyp ? origAmount : 0.0)).toDouble();
+
+                  final Timestamp? timestamp = tx['timestamp'] as Timestamp?;
+                  final String dateStr = timestamp != null
+                      ? "${timestamp.toDate().day}/${timestamp.toDate().month}/${timestamp.toDate().year} - ${timestamp.toDate().hour}:${timestamp.toDate().minute}"
+                      : "الآن";
+
+                  return ListTile(
+                    leading: CircleAvatar(
+                      backgroundColor: isSyp ? Colors.blue[100] : Colors.green[100],
+                      child: Text(
+                        isSyp ? 'ل.س' : '\$',
+                        style: TextStyle(color: isSyp ? Colors.blue[900] : Colors.green[900], fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    title: Text(tx['title'] ?? ''),
+                    subtitle: Text('$dateStr\nمعادل: ${isSyp ? "\$${usdValue.toStringAsFixed(2)}" : "${sypValue.toStringAsFixed(0)} ل.س"}', style: const TextStyle(fontSize: 12)),
+                    trailing: Text(
+                      '$origAmount ${tx['currency']}',
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                    ),
+                  );
+                },
+              ),
       ),
     );
   }
