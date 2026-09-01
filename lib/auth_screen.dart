@@ -17,7 +17,7 @@ class _AuthScreenState extends State<AuthScreen> {
   bool _isLogin = true;
   bool _isLoading = false;
 
-  // 1. الدخول عبر البريد الإلكتروني وكلمة المرور
+  // 1. الدخول عبر البريد الإلكتروني أو تحويل حساب الزائر إلى دائم
   Future<void> _submitEmailAuth() async {
     final email = _emailController.text.trim();
     final password = _passwordController.text.trim();
@@ -29,19 +29,34 @@ class _AuthScreenState extends State<AuthScreen> {
 
     setState(() => _isLoading = true);
     try {
+      final currentUser = FirebaseAuth.instance.currentUser;
+
       if (_isLogin) {
+        // تسجيل دخول لحساب موجود مسبقاً
         await FirebaseAuth.instance.signInWithEmailAndPassword(
           email: email,
           password: password,
         );
       } else {
-        await FirebaseAuth.instance.createUserWithEmailAndPassword(
-          email: email,
-          password: password,
-        );
+        // إذا كان المستخدم زائراً حالياً ويريد إنشاء حساب، نربط البيانات الحالية بالحساب الجديد
+        if (currentUser != null && currentUser.isAnonymous) {
+          AuthCredential credential = EmailAuthProvider.credential(
+            email: email,
+            password: password,
+          );
+          await currentUser.linkWithCredential(credential);
+        } else {
+          // إنشاء حساب جديد كلياً
+          await FirebaseAuth.instance.createUserWithEmailAndPassword(
+            email: email,
+            password: password,
+          );
+        }
       }
     } on FirebaseAuthException catch (e) {
       _showError(e.message ?? 'حدث خطأ أثناء عملية المصادقة.');
+    } catch (e) {
+      _showError('حدث خطأ غير متوقع، يرجى المحاولة لاحقاً.');
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
@@ -108,7 +123,7 @@ class _AuthScreenState extends State<AuthScreen> {
     }
   }
 
-  // 5. الدخول كـ زائر (Anonymous)
+  // 5. الدخول كـ زائر (Anonymous) - يضمن منح ID خاص لكل جهاز
   Future<void> _signInAsGuest() async {
     setState(() => _isLoading = true);
     try {
@@ -197,7 +212,6 @@ class _AuthScreenState extends State<AuthScreen> {
                   ],
                 ),
               ),
-              // أزرار منصات التواصل والزائر
               OutlinedButton.icon(
                 icon: const Icon(Icons.g_mobiledata, size: 28, color: Colors.red),
                 label: const Text('المتابعة باستخدام Google'),

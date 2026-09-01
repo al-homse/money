@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'auth_screen.dart'; // افترضنا وجود ملف الشاشة السابقة للعودة إليها
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -9,10 +11,19 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final CollectionReference _expensesCollection =
-      FirebaseFirestore.instance.collection('expenses');
-  final DocumentReference _settingsDoc =
-      FirebaseFirestore.instance.collection('app_settings').doc('config');
+  final User? _currentUser = FirebaseAuth.instance.currentUser;
+
+  // الوصول لمسار المستخدم الخاص
+  CollectionReference get _expensesCollection => FirebaseFirestore.instance
+      .collection('users')
+      .doc(_currentUser?.uid ?? 'unknown')
+      .collection('expenses');
+
+  DocumentReference get _settingsDoc => FirebaseFirestore.instance
+      .collection('users')
+      .doc(_currentUser?.uid ?? 'unknown')
+      .collection('settings')
+      .doc('config');
 
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _amountController = TextEditingController();
@@ -21,7 +32,6 @@ class _HomeScreenState extends State<HomeScreen> {
   final TextEditingController _budgetController = TextEditingController();
   final TextEditingController _exchangeController = TextEditingController();
 
-  // تحديد لون شريط التقدم بناءً على نسبة الاستهلاك
   Color _getProgressBarColor(double ratio) {
     if (ratio < 0.25) {
       return Colors.green;
@@ -194,7 +204,6 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  // شاشة السجل الاحترافية بالتاريخ وتصفية القائمة
   void _openHistoryScreen(List<QueryDocumentSnapshot> docs) {
     Navigator.of(context).push(
       MaterialPageRoute(
@@ -214,6 +223,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final bool isGuest = _currentUser?.isAnonymous ?? false;
+
     return Directionality(
       textDirection: TextDirection.rtl,
       child: StreamBuilder<DocumentSnapshot>(
@@ -246,6 +257,13 @@ class _HomeScreenState extends State<HomeScreen> {
                   tooltip: 'تعديل سعر الصرف والميزانية',
                   onPressed: () => _showSettingsDialog(budgetLimitSYP, exchangeRate),
                 ),
+                IconButton(
+                  icon: const Icon(Icons.logout),
+                  tooltip: 'تسجيل الخروج',
+                  onPressed: () async {
+                    await FirebaseAuth.instance.signOut();
+                  },
+                ),
               ],
             ),
             body: StreamBuilder<QuerySnapshot>(
@@ -277,6 +295,32 @@ class _HomeScreenState extends State<HomeScreen> {
 
                 return Column(
                   children: [
+                    // شريط تنبيه الزائر لتحويل حسابه لبريد إلكتروني
+                    if (isGuest)
+                      Container(
+                        color: Colors.amber[100],
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.warning_amber_rounded, color: Colors.orange),
+                            const SizedBox(width: 8),
+                            const Expanded(
+                              child: Text(
+                                'تتصفح حالياً كـ زائر، البيانات قد تضيع عند مسح ذاكرة الجهاز.',
+                                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                              ),
+                            ),
+                            TextButton(
+                              onPressed: () {
+                                Navigator.of(context).push(
+                                  MaterialPageRoute(builder: (ctx) => const AuthScreen()),
+                                );
+                              },
+                              child: const Text('حفظ الحساب', style: TextStyle(fontWeight: FontWeight.bold)),
+                            )
+                          ],
+                        ),
+                      ),
                     Card(
                       margin: const EdgeInsets.all(16),
                       elevation: 4,
@@ -324,8 +368,6 @@ class _HomeScreenState extends State<HomeScreen> {
                               minHeight: 10,
                               borderRadius: BorderRadius.circular(5),
                             ),
-                            
-                            // شريط التجاوز في حال تخطي الميزانية
                             if (overBudgetAmount > 0) ...[
                               const SizedBox(height: 14),
                               Row(
@@ -418,7 +460,6 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 }
 
-// الويجيت المخصصة لشاشة السجل مع قائمة الفلترة بالتاريخ
 class HistoryScreen extends StatefulWidget {
   final List<QueryDocumentSnapshot> docs;
   const HistoryScreen({super.key, required this.docs});
