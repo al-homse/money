@@ -22,12 +22,15 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'تطبيق المصاريف',
-      home: const SplashScreen(), // تبدأ شاشة التحميل والأنيميشن أولاً
+      home: const SplashScreen(),
+      // إضافة المسارات المباشرة لمنع الشاشة السوداء في الأندرويد
+      routes: {
+        '/auth': (context) => const AuthWrapper(),
+      },
     );
   }
 }
 
-// ويدجت مستقل لمعالجة حالة تسجيل الدخول بعد شاشة البداية
 class AuthWrapper extends StatelessWidget {
   const AuthWrapper({super.key});
 
@@ -39,13 +42,15 @@ class AuthWrapper extends StatelessWidget {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(
             backgroundColor: Color(0xFF0F172A),
-            body: Center(child: CircularProgressIndicator()),
+            body: Center(
+              child: CircularProgressIndicator(color: Colors.indigoAccent),
+            ),
           );
         }
         if (snapshot.hasData) {
-          return const HomeScreen(); // الصفحة الرئيسية في حال كان مسجلاً أو زائراً
+          return const HomeScreen();
         }
-        return const AuthScreen(); // شاشة الدخول في حال لم يسجل بعد
+        return const AuthScreen();
       },
     );
   }
