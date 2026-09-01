@@ -190,7 +190,7 @@ class _AuthScreenState extends State<AuthScreen> {
                   children: [
                     Expanded(child: Divider()),
                     Padding(
-                      padding: EdgeInsets.horizontal(8.0),
+                      padding: const EdgeInsets.symmetric(horizontal: 8.0),
                       child: Text('أو عبر'),
                     ),
                     Expanded(child: Divider()),
