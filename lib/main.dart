@@ -3,8 +3,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'firebase_options.dart';
 import 'auth_screen.dart';
-import 'home_screen.dart'; // افترضنا أن هذا اسم الشاشة الرئيسية لتطبيقك
-
+import 'views/home_screen.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
