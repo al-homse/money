@@ -266,188 +266,210 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               ],
             ),
-            body: StreamBuilder<QuerySnapshot>(
-              stream: _expensesCollection.orderBy('timestamp', descending: true).snapshots(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
+            body: Stack(
+              children: [
+                StreamBuilder<QuerySnapshot>(
+                  stream: _expensesCollection.orderBy('timestamp', descending: true).snapshots(),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
 
-                final docs = snapshot.data?.docs ?? [];
-                double totalSYPCombined = 0.0;
-                double totalUSDCombined = 0.0;
+                    final docs = snapshot.data?.docs ?? [];
+                    double totalSYPCombined = 0.0;
+                    double totalUSDCombined = 0.0;
 
-                for (var doc in docs) {
-                  final data = doc.data() as Map<String, dynamic>;
-                  final isSyp = data['currency'] == 'SYP';
-                  final origAmount = (data['originalAmount'] ?? data['amount'] ?? 0.0).toDouble();
+                    for (var doc in docs) {
+                      final data = doc.data() as Map<String, dynamic>;
+                      final isSyp = data['currency'] == 'SYP';
+                      final origAmount = (data['originalAmount'] ?? data['amount'] ?? 0.0).toDouble();
 
-                  final sypValue = (data['amountInSYP'] ?? (isSyp ? origAmount : origAmount * exchangeRate)).toDouble();
-                  final usdValue = (data['amountInUSD'] ?? (!isSyp ? origAmount : (exchangeRate > 0 ? origAmount / exchangeRate : 0.0))).toDouble();
+                      final sypValue = (data['amountInSYP'] ?? (isSyp ? origAmount : origAmount * exchangeRate)).toDouble();
+                      final usdValue = (data['amountInUSD'] ?? (!isSyp ? origAmount : (exchangeRate > 0 ? origAmount / exchangeRate : 0.0))).toDouble();
 
-                  totalSYPCombined += sypValue;
-                  totalUSDCombined += usdValue;
-                }
+                      totalSYPCombined += sypValue;
+                      totalUSDCombined += usdValue;
+                    }
 
-                double progressRatio = budgetLimitSYP > 0 ? (totalSYPCombined / budgetLimitSYP) : 0.0;
-                double overBudgetAmount = totalSYPCombined - budgetLimitSYP;
-                double overBudgetRatio = budgetLimitSYP > 0 ? (overBudgetAmount / budgetLimitSYP) : 0.0;
+                    double progressRatio = budgetLimitSYP > 0 ? (totalSYPCombined / budgetLimitSYP) : 0.0;
+                    double overBudgetAmount = totalSYPCombined - budgetLimitSYP;
+                    double overBudgetRatio = budgetLimitSYP > 0 ? (overBudgetAmount / budgetLimitSYP) : 0.0;
 
-                return Column(
-                  children: [
-                    // شريط تنبيه الزائر لتحويل حسابه لبريد إلكتروني
-                    if (isGuest)
-                      Container(
-                        color: Colors.amber[100],
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                        child: Row(
-                          children: [
-                            const Icon(Icons.warning_amber_rounded, color: Colors.orange),
-                            const SizedBox(width: 8),
-                            const Expanded(
-                              child: Text(
-                                'تتصفح حالياً كـ زائر، البيانات قد تضيع عند مسح ذاكرة الجهاز.',
-                                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                              ),
-                            ),
-                            TextButton(
-                              onPressed: () {
-                                Navigator.of(context).push(
-                                  MaterialPageRoute(builder: (ctx) => const AuthScreen()),
-                                );
-                              },
-                              child: const Text('حفظ الحساب', style: TextStyle(fontWeight: FontWeight.bold)),
-                            )
-                          ],
-                        ),
-                      ),
-                    Card(
-                      margin: const EdgeInsets.all(16),
-                      elevation: 4,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          children: [
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    return Column(
+                      children: [
+                        // شريط تنبيه الزائر لتحويل حسابه لبريد إلكتروني
+                        if (isGuest)
+                          Container(
+                            color: Colors.amber[100],
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                            child: Row(
                               children: [
-                                const Text('إجمالي المصاريف (ل.س):', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-                                Text('${totalSYPCombined.toStringAsFixed(0)} ل.س', style: const TextStyle(fontSize: 16, color: Colors.redAccent, fontWeight: FontWeight.bold)),
-                              ],
-                            ),
-                            const SizedBox(height: 6),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                const Text('المعادل الشامل (USD):', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-                                Text('\$${totalUSDCombined.toStringAsFixed(2)}', style: const TextStyle(fontSize: 16, color: Colors.green, fontWeight: FontWeight.bold)),
-                              ],
-                            ),
-                            const Divider(height: 20),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                Text('سعر الصرف: 1\$ = ${exchangeRate.toStringAsFixed(0)} ل.س', style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                                Text('حد الميزانية: ${budgetLimitSYP.toStringAsFixed(0)} ل.س', style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                              ],
-                            ),
-                            const SizedBox(height: 10),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              children: [
-                                const Text('نسبة استهلاك الميزانية:', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                                Text('${(progressRatio * 100).toStringAsFixed(1)}%', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
-                              ],
-                            ),
-                            const SizedBox(height: 6),
-                            LinearProgressIndicator(
-                              value: progressRatio > 1.0 ? 1.0 : progressRatio,
-                              backgroundColor: Colors.grey[200],
-                              color: _getProgressBarColor(progressRatio),
-                              minHeight: 10,
-                              borderRadius: BorderRadius.circular(5),
-                            ),
-                            if (overBudgetAmount > 0) ...[
-                              const SizedBox(height: 14),
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                children: [
-                                  Text(
-                                    'تجاوز الميزانية (+${overBudgetAmount.toStringAsFixed(0)} ل.س):',
-                                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.red),
+                                const Icon(Icons.warning_amber_rounded, color: Colors.orange),
+                                const SizedBox(width: 8),
+                                const Expanded(
+                                  child: Text(
+                                    'تتصفح حالياً كـ زائر، البيانات قد تضيع عند مسح ذاكرة الجهاز.',
+                                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
                                   ),
-                                  Text(
-                                    '+${(overBudgetRatio * 100).toStringAsFixed(1)}%',
-                                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.red),
+                                ),
+                                TextButton(
+                                  onPressed: () {
+                                    Navigator.of(context).push(
+                                      MaterialPageRoute(builder: (ctx) => const AuthScreen()),
+                                    );
+                                  },
+                                  child: const Text('حفظ الحساب', style: TextStyle(fontWeight: FontWeight.bold)),
+                                )
+                              ],
+                            ),
+                          ),
+                        Card(
+                          margin: const EdgeInsets.all(16),
+                          elevation: 4,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          child: Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Column(
+                              children: [
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    const Text('إجمالي المصاريف (ل.س):', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                                    Text('${totalSYPCombined.toStringAsFixed(0)} ل.س', style: const TextStyle(fontSize: 16, color: Colors.redAccent, fontWeight: FontWeight.bold)),
+                                  ],
+                                ),
+                                const SizedBox(height: 6),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    const Text('المعادل الشامل (USD):', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                                    Text('\$${totalUSDCombined.toStringAsFixed(2)}', style: const TextStyle(fontSize: 16, color: Colors.green, fontWeight: FontWeight.bold)),
+                                  ],
+                                ),
+                                const Divider(height: 20),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text('سعر الصرف: 1\$ = ${exchangeRate.toStringAsFixed(0)} ل.س', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                                    Text('حد الميزانية: ${budgetLimitSYP.toStringAsFixed(0)} ل.س', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                                  ],
+                                ),
+                                const SizedBox(height: 10),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    const Text('نسبة استهلاك الميزانية:', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                                    Text('${(progressRatio * 100).toStringAsFixed(1)}%', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                                  ],
+                                ),
+                                const SizedBox(height: 6),
+                                LinearProgressIndicator(
+                                  value: progressRatio > 1.0 ? 1.0 : progressRatio,
+                                  backgroundColor: Colors.grey[200],
+                                  color: _getProgressBarColor(progressRatio),
+                                  minHeight: 10,
+                                  borderRadius: BorderRadius.circular(5),
+                                ),
+                                if (overBudgetAmount > 0) ...[
+                                  const SizedBox(height: 14),
+                                  Row(
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Text(
+                                        'تجاوز الميزانية (+${overBudgetAmount.toStringAsFixed(0)} ل.س):',
+                                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.red),
+                                      ),
+                                      Text(
+                                        '+${(overBudgetRatio * 100).toStringAsFixed(1)}%',
+                                        style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.red),
+                                      ),
+                                    ],
+                                  ),
+                                  const SizedBox(height: 4),
+                                  LinearProgressIndicator(
+                                    value: overBudgetRatio > 1.0 ? 1.0 : overBudgetRatio,
+                                    backgroundColor: Colors.red[50],
+                                    color: Colors.red[900],
+                                    minHeight: 8,
+                                    borderRadius: BorderRadius.circular(4),
                                   ),
                                 ],
-                              ),
-                              const SizedBox(height: 4),
-                              LinearProgressIndicator(
-                                value: overBudgetRatio > 1.0 ? 1.0 : overBudgetRatio,
-                                backgroundColor: Colors.red[50],
-                                color: Colors.red[900],
-                                minHeight: 8,
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                            ],
-                          ],
+                              ],
+                            ),
+                          ),
                         ),
+                        Expanded(
+                          child: docs.isEmpty
+                              ? const Center(child: Text('لا توجد مصاريف مسجلة حتى الآن.'))
+                              : ListView.builder(
+                                  padding: const EdgeInsets.only(bottom: 30),
+                                  itemCount: docs.length,
+                                  itemBuilder: (ctx, index) {
+                                    final doc = docs[index];
+                                    final tx = doc.data() as Map<String, dynamic>;
+                                    final isSyp = tx['currency'] == 'SYP';
+                                    final origAmount = (tx['originalAmount'] ?? tx['amount'] ?? 0.0).toDouble();
+
+                                    final sypValue = (tx['amountInSYP'] ?? (isSyp ? origAmount : origAmount * exchangeRate)).toDouble();
+                                    final usdValue = (tx['amountInUSD'] ?? (!isSyp ? origAmount : (exchangeRate > 0 ? origAmount / exchangeRate : 0.0))).toDouble();
+
+                                    return Card(
+                                      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                                      child: ListTile(
+                                        leading: CircleAvatar(
+                                          backgroundColor: isSyp ? Colors.blue[100] : Colors.green[100],
+                                          child: Text(
+                                            isSyp ? 'ل.س' : '\$',
+                                            style: TextStyle(color: isSyp ? Colors.blue[900] : Colors.green[900], fontWeight: FontWeight.bold),
+                                          ),
+                                        ),
+                                        title: Text(tx['title'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold)),
+                                        subtitle: Text(
+                                          isSyp
+                                              ? 'المعادل: \$${usdValue.toStringAsFixed(2)}'
+                                              : 'المعادل: ${sypValue.toStringAsFixed(0)} ل.س',
+                                          style: TextStyle(fontSize: 12, color: Colors.grey[700]),
+                                        ),
+                                        trailing: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Text(
+                                              '$origAmount ${tx['currency']}',
+                                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                                            ),
+                                            IconButton(
+                                              icon: const Icon(Icons.delete, color: Colors.redAccent, size: 20),
+                                              onPressed: () => _deleteTransaction(doc.id),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+
+                // العلامة المائية الثابتة أسفل اليسار
+                const Positioned(
+                  left: 12,
+                  bottom: 8,
+                  child: IgnorePointer(
+                    child: Text(
+                      'Powered & Designed by AL-Homse',
+                      style: TextStyle(
+                        color: Colors.grey,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                        letterSpacing: 0.5,
                       ),
                     ),
-                    Expanded(
-                      child: docs.isEmpty
-                          ? const Center(child: Text('لا توجد مصاريف مسجلة حتى الآن.'))
-                          : ListView.builder(
-                              itemCount: docs.length,
-                              itemBuilder: (ctx, index) {
-                                final doc = docs[index];
-                                final tx = doc.data() as Map<String, dynamic>;
-                                final isSyp = tx['currency'] == 'SYP';
-                                final origAmount = (tx['originalAmount'] ?? tx['amount'] ?? 0.0).toDouble();
-
-                                final sypValue = (tx['amountInSYP'] ?? (isSyp ? origAmount : origAmount * exchangeRate)).toDouble();
-                                final usdValue = (tx['amountInUSD'] ?? (!isSyp ? origAmount : (exchangeRate > 0 ? origAmount / exchangeRate : 0.0))).toDouble();
-
-                                return Card(
-                                  margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                                  child: ListTile(
-                                    leading: CircleAvatar(
-                                      backgroundColor: isSyp ? Colors.blue[100] : Colors.green[100],
-                                      child: Text(
-                                        isSyp ? 'ل.س' : '\$',
-                                        style: TextStyle(color: isSyp ? Colors.blue[900] : Colors.green[900], fontWeight: FontWeight.bold),
-                                      ),
-                                    ),
-                                    title: Text(tx['title'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold)),
-                                    subtitle: Text(
-                                      isSyp
-                                          ? 'المعادل: \$${usdValue.toStringAsFixed(2)}'
-                                          : 'المعادل: ${sypValue.toStringAsFixed(0)} ل.س',
-                                      style: TextStyle(fontSize: 12, color: Colors.grey[700]),
-                                    ),
-                                    trailing: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Text(
-                                          '$origAmount ${tx['currency']}',
-                                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                                        ),
-                                        IconButton(
-                                          icon: const Icon(Icons.delete, color: Colors.redAccent, size: 20),
-                                          onPressed: () => _deleteTransaction(doc.id),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                );
-                              },
-                            ),
-                    ),
-                  ],
-                );
-              },
+                  ),
+                ),
+              ],
             ),
             floatingActionButton: FloatingActionButton(
               onPressed: () => _showAddTransactionDialog(exchangeRate),
@@ -530,39 +552,61 @@ class _HistoryScreenState extends State<HistoryScreen> {
             ),
           ),
         ),
-        body: filteredDocs.isEmpty
-            ? const Center(child: Text('لا توجد مصاريف لهذه الفترة.'))
-            : ListView.builder(
-                itemCount: filteredDocs.length,
-                itemBuilder: (context, index) {
-                  final tx = filteredDocs[index].data() as Map<String, dynamic>;
-                  final isSyp = tx['currency'] == 'SYP';
-                  final double origAmount = (tx['originalAmount'] ?? tx['amount'] ?? 0.0).toDouble();
-                  final double sypValue = (tx['amountInSYP'] ?? (isSyp ? origAmount : 0.0)).toDouble();
-                  final double usdValue = (tx['amountInUSD'] ?? (!isSyp ? origAmount : 0.0)).toDouble();
+        body: Stack(
+          children: [
+            filteredDocs.isEmpty
+                ? const Center(child: Text('لا توجد مصاريف لهذه الفترة.'))
+                : ListView.builder(
+                    padding: const EdgeInsets.only(bottom: 30),
+                    itemCount: filteredDocs.length,
+                    itemBuilder: (context, index) {
+                      final tx = filteredDocs[index].data() as Map<String, dynamic>;
+                      final isSyp = tx['currency'] == 'SYP';
+                      final double origAmount = (tx['originalAmount'] ?? tx['amount'] ?? 0.0).toDouble();
+                      final double sypValue = (tx['amountInSYP'] ?? (isSyp ? origAmount : 0.0)).toDouble();
+                      final double usdValue = (tx['amountInUSD'] ?? (!isSyp ? origAmount : 0.0)).toDouble();
 
-                  final Timestamp? timestamp = tx['timestamp'] as Timestamp?;
-                  final String dateStr = timestamp != null
-                      ? "${timestamp.toDate().day}/${timestamp.toDate().month}/${timestamp.toDate().year} - ${timestamp.toDate().hour}:${timestamp.toDate().minute}"
-                      : "الآن";
+                      final Timestamp? timestamp = tx['timestamp'] as Timestamp?;
+                      final String dateStr = timestamp != null
+                          ? "${timestamp.toDate().day}/${timestamp.toDate().month}/${timestamp.toDate().year} - ${timestamp.toDate().hour}:${timestamp.toDate().minute}"
+                          : "الآن";
 
-                  return ListTile(
-                    leading: CircleAvatar(
-                      backgroundColor: isSyp ? Colors.blue[100] : Colors.green[100],
-                      child: Text(
-                        isSyp ? 'ل.س' : '\$',
-                        style: TextStyle(color: isSyp ? Colors.blue[900] : Colors.green[900], fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                    title: Text(tx['title'] ?? ''),
-                    subtitle: Text('$dateStr\nمعادل: ${isSyp ? "\$${usdValue.toStringAsFixed(2)}" : "${sypValue.toStringAsFixed(0)} ل.س"}', style: const TextStyle(fontSize: 12)),
-                    trailing: Text(
-                      '$origAmount ${tx['currency']}',
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-                    ),
-                  );
-                },
+                      return ListTile(
+                        leading: CircleAvatar(
+                          backgroundColor: isSyp ? Colors.blue[100] : Colors.green[100],
+                          child: Text(
+                            isSyp ? 'ل.س' : '\$',
+                            style: TextStyle(color: isSyp ? Colors.blue[900] : Colors.green[900], fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                        title: Text(tx['title'] ?? ''),
+                        subtitle: Text('$dateStr\nمعادل: ${isSyp ? "\$${usdValue.toStringAsFixed(2)}" : "${sypValue.toStringAsFixed(0)} ل.س"}', style: const TextStyle(fontSize: 12)),
+                        trailing: Text(
+                          '$origAmount ${tx['currency']}',
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                        ),
+                      );
+                    },
+                  ),
+
+            // العلامة المائية الثابتة أسفل اليسار في شاشة السجل
+            const Positioned(
+              left: 12,
+              bottom: 8,
+              child: IgnorePointer(
+                child: Text(
+                  'Powered & Designed by AL-Homse',
+                  style: TextStyle(
+                    color: Colors.grey,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                    letterSpacing: 0.5,
+                  ),
+                ),
               ),
+            ),
+          ],
+        ),
       ),
     );
   }

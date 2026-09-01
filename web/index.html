@@ -18,25 +18,86 @@
 
   <title>money</title>
   <link rel="manifest" href="manifest.json">
+
+  <!-- تنسيقات شاشة التحميل والعلامة المائية -->
+  <style>
+    body {
+      background-color: #0F172A; /* خلفية داكنة فاخرة */
+      margin: 0;
+      padding: 0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      overflow: hidden;
+      font-family: system-ui, -apple-system, sans-serif;
+    }
+
+    .loader-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* مؤشر تحميل متحرك ودائري */
+    .spinner {
+      width: 46px;
+      height: 46px;
+      border: 3px solid rgba(255, 255, 255, 0.1);
+      border-left-color: #6366F1;
+      border-radius: 50%;
+      animation: spin 0.9s linear infinite;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* العلامة المائية في الأسفل اليسار */
+    .watermark-html {
+      position: absolute;
+      bottom: 16px;
+      left: 16px;
+      color: rgba(255, 255, 255, 0.35);
+      font-size: 12px;
+      font-weight: 500;
+      letter-spacing: 0.5px;
+      direction: ltr;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+  </style>
 </head>
 <body>
-  <!-<!-- Firebase SDKs -->
-<script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
+  <!-- عنصر شاشة التحميل المبدئية -->
+  <div class="loader-container">
+    <div class="spinner"></div>
+  </div>
 
-<script>
-  const firebaseConfig = {
-    apiKey: "AIzaSyCeTkG9y_J4f_eAw9f-s2mtfCWYbIAPK2w",
-    authDomain: "money-7eb69.firebaseapp.com",
-    projectId: "money-7eb69",
-    storageBucket: "money-7eb69.firebasestorage.app",
-    messagingSenderId: "609160171719",
-    appId: "1:609160171719:web:d0c37479729a30190a6ee2"
-  };
+  <!-- العلامة المائية في أسفل اليسار -->
+  <div class="watermark-html">
+    Powered & Designed by AL-Homse
+  </div>
 
-  // Initialize Firebase
-  firebase.initializeApp(firebaseConfig);
-</script>-
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore-compat.js"></script>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyCeTkG9y_J4f_eAw9f-s2mtfCWYbIAPK2w",
+      authDomain: "money-7eb69.firebaseapp.com",
+      projectId: "money-7eb69",
+      storageBucket: "money-7eb69.firebasestorage.app",
+      messagingSenderId: "609160171719",
+      appId: "1:609160171719:web:d0c37479729a30190a6ee2"
+    };
+
+    // Initialize Firebase
+    firebase.initializeApp(firebaseConfig);
+  </script>
+
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

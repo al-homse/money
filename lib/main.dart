@@ -3,7 +3,9 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'firebase_options.dart';
 import 'auth_screen.dart';
+import 'splash_screen.dart';
 import 'views/home_screen.dart';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
@@ -20,20 +22,31 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
       title: 'تطبيق المصاريف',
-      home: StreamBuilder<User?>(
-        stream: FirebaseAuth.instance.authStateChanges(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Scaffold(
-              body: Center(child: CircularProgressIndicator()),
-            );
-          }
-          if (snapshot.hasData) {
-            return const HomeScreen(); // الصفحة الرئيسية في حال كان مسجلاً أو زائراً
-          }
-          return const AuthScreen(); // شاشة الدخول في حال لم يسجل بعد
-        },
-      ),
+      home: const SplashScreen(), // تبدأ شاشة التحميل والأنيميشن أولاً
+    );
+  }
+}
+
+// ويدجت مستقل لمعالجة حالة تسجيل الدخول بعد شاشة البداية
+class AuthWrapper extends StatelessWidget {
+  const AuthWrapper({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<User?>(
+      stream: FirebaseAuth.instance.authStateChanges(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            backgroundColor: Color(0xFF0F172A),
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+        if (snapshot.hasData) {
+          return const HomeScreen(); // الصفحة الرئيسية في حال كان مسجلاً أو زائراً
+        }
+        return const AuthScreen(); // شاشة الدخول في حال لم يسجل بعد
+      },
     );
   }
 }
