@@ -1,9 +1,14 @@
-name: Build Android APK
+name: Build Android APK & Release
 
 on:
   push:
     branches:
-      - main # أو master حسب اسم الفرع الرئيسي لديك
+      - main # يتم البناء وتحديث الـ Artifacts عند الرفع على main
+    tags:
+      - 'v*' # يتم إنشاء Release رسمي عند رفع tag مثل v1.0.0
+
+permissions:
+  contents: write # إعطاء صلاحية إنشاء Release ورفع الملفات
 
 jobs:
   build:
@@ -35,9 +40,21 @@ jobs:
       - name: Build APK
         run: flutter build apk --release
 
-      # 6. رفع ملف الـ APK لتتمكن من تحميله
+      # 6. رفع ملف الـ APK كـ Artifact (للتحميل العادي من قسم Actions)
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
         with:
           name: release-apk
           path: build/app/outputs/flutter-apk/app-release.apk
+
+      # 7. رفع ملف الـ APK إلى GitHub Releases (عند عمل Tag)
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          files: build/app/outputs/flutter-apk/app-release.apk
+          name: Release ${{ github.ref_name }}
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
