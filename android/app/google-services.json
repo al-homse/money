@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "609160171719",
+    "project_id": "money-7eb69",
+    "storage_bucket": "money-7eb69.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:609160171719:android:d1fc55dcb304a7bb0a6ee2",
+        "android_client_info": {
+          "package_name": "com.example.money"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "609160171719-ulltj669fpskc1irl4bq098tu2me5p8l.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBaLwZWY-bInx67cfVdcuUYAkiYR6khaQI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "609160171719-ulltj669fpskc1irl4bq098tu2me5p8l.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
